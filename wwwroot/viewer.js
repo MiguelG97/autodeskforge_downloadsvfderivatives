@@ -84,9 +84,9 @@ export function loadModel(viewer, urn) {
           );
         }
       );
-      console.log(
-        bubbleNode.getDefaultGeometry()
-      );
+      // console.log(
+      //   bubbleNode.getDefaultGeometry()
+      // );
       if (unitFloorPlanBubble) {
         resolve(
           viewer.loadDocumentNode(

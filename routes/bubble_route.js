@@ -16,15 +16,22 @@ const dir = path.resolve(
 );
 
 bubbleRouter.get("/bubble", async (req, res) => {
-  const extractorSvc = new ExtractorSvc();
-  const files = await extractorSvc.download(
-    urn,
-    dir
-  );
+  try {
+    const extractorSvc = new ExtractorSvc();
 
-  console.log(
-    "download succeed! proceding with ziping the file"
-  );
+    const files = await extractorSvc.download(
+      urn,
+      dir
+    );
+    res.json(files);
+  } catch (error) {
+    console.log(error);
+    res.json(error);
+  }
+
+  // console.log(
+  //   "download succeed! proceding with ziping the file"
+  // );
 
   //not neccessary the zip meanwhile
   // const zipfile = dir + ".zip";

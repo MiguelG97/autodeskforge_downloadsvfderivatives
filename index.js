@@ -21,7 +21,7 @@ app.use(modelRoute);
 app.use(bubbleRouter);
 
 app.listen(5050, () => {
-  console.log("listening");
+  console.log("listening to port 5050...");
 });
 
 module.exports = app;

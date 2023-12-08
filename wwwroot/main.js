@@ -9,9 +9,9 @@ initViewer(
   // const urn = window.location.hash?.substring(1);
   // setupModelSelection(viewer, urn);
   // setupModelUpload(viewer);
-  const globalUrn =
-    "dXJuOmFkc2sub2JqZWN0czpvcy5vYmplY3Q6aXRpemJ1Y3ppYm00cG1wdHJ0ZWF0Z212bzRxMzRjYWstYmFzaWMtYXBwL3VuaXRSMTYyLnJ2dA";
-  await loadModel(viewer, globalUrn);
+  // const globalUrn =
+  //   "dXJuOmFkc2sub2JqZWN0czpvcy5vYmplY3Q6aXRpemJ1Y3ppYm00cG1wdHJ0ZWF0Z212bzRxMzRjYWstYmFzaWMtYXBwL3VuaXRSMTYyLnJ2dA";
+  // await loadModel(viewer, globalUrn);
 });
 
 // async function setupModelSelection(

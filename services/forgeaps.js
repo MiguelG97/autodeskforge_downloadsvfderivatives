@@ -153,6 +153,7 @@ const translateObject = async (
 
 const getManifest = async (urn) => {
   try {
+    //I believe this api is deprecated regarding docs!
     const resp =
       await new APS.DerivativesApi().getManifest(
         urn,

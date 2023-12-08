@@ -40,13 +40,18 @@ module.exports = class ExtractorSvc {
       async (resolve, reject) => {
         try {
           // get URN top level manifest
-          const manifest =
+          const internal_Token =
+            await getInternalToken();
+          const resp1 =
             await this.derivativesAPI.getManifest(
               urn,
               {},
               null,
-              await getInternalToken()
+              internal_Token
             );
+          const manifest = resp1.body;
+          // resolve(manifest); //delete
+          // console.log(manifest);
 
           // harvest(gather,caching) derivatives:
           //a) Parse manifest -> body prop
@@ -56,22 +61,28 @@ module.exports = class ExtractorSvc {
           //if role is included in a list of roles, then we build an item object that contains guid, mime and urn
 
           //b) depending upon mime prop, we get a specific derivative (svf, f2d, json.gz)
-          // const items = this.parseManifest(
-          //   manifest.body
-          // );
+          // const items =
+          //   this.parseManifest(manifest);
+          // resolve(items);
+
           // const svfPaths = items.map((item) => {
           //   return item.urn.slice(
           //     item.basePath.length
           //   );
           // });
           // console.log(svfPaths);
+
+          //** */
+
           const derivatives =
             await this.getDerivatives(
-              manifest.body
+              manifest,
+              internal_Token
             );
-          // console.log(derivatives);
+          // resolve(derivatives);
 
-          // format derivative resources
+          //format derivative resources
+
           const nestedDerivatives =
             derivatives.map((item) => {
               return item.files.map((file) => {
@@ -89,21 +100,19 @@ module.exports = class ExtractorSvc {
                 };
               });
             });
-          // console.log(nestedDerivatives);
+          // // console.log(nestedDerivatives);
 
-          // flatten resources (./BaseSvc  where this comes from??)
+          // // flatten resources (./BaseSvc  where this comes from??)
           const derivativesList = _.flattenDeep(
             nestedDerivatives
           );
-          // console.log(
-          //   nestedDerivatives,
-          //   derivativesList
-          // );
+          // resolve(derivativesList);
+          // // creates async download tasks for each
+          // // derivative file
 
-          // creates async download tasks for each
-          // derivative file
           const downloadTasks =
             derivativesList.map((derivative) => {
+              //model.sdb || AECModelData
               return new Promise(
                 async (resolve) => {
                   const urn = path.join(
@@ -112,7 +121,7 @@ module.exports = class ExtractorSvc {
                   );
                   const data =
                     await this.getDerivative(
-                      await getInternalToken(),
+                      internal_Token,
                       urn
                     );
                   // console.log(data);
@@ -130,13 +139,15 @@ module.exports = class ExtractorSvc {
                 }
               );
             });
-          console.log(downloadTasks);
+          // console.log(downloadTasks);
+          // resolve(downloadTasks);
 
           // wait for all files to be downloaded
           const files = await Promise.all(
             downloadTasks
           );
           resolve(files);
+          //** */
         } catch (error) {
           console.log("Miguelg", error);
         }
@@ -150,31 +161,44 @@ module.exports = class ExtractorSvc {
   /////////////////////////////////////////////////////////
   parseManifest(manifestBody) {
     const items = [];
+    const nodeRoles = [];
+    const nodeMimes = [];
 
     const parseNodeRec = (node) => {
       const roles = [
         "Autodesk.CloudPlatform.DesignDescription",
         "Autodesk.CloudPlatform.PropertyDatabase",
         "Autodesk.CloudPlatform.IndexableContent",
+        // "Autodesk.AEC.ModelData", //missing, do we need it?!! its a AECModelData.json file
+        "2d", //missing too this one!!
         "leaflet-zip",
         "thumbnail",
         "graphics",
         "preview",
         "raas",
-        "pdf",
+        "pdf", //this one was update to pdf-page apparently!
         "lod",
+        "pdf-page",
       ];
 
-      if (roles.includes(node.role)) {
+      if (
+        node.urn === undefined ||
+        node.urn === null ||
+        node.urn === ""
+      ) {
+        //  nodeRoles.push(node.role); //2d roles do not have urn property. There is nothing we can do without urn!
+      } else if (roles.includes(node.role)) {
+        //&& node.urn.includes("model.sdb")
+        // nodeRoles.push(node.role);
+        // nodeMimes.push(node.mime);
+
         const item = {
           guid: node.guid,
           mime: node.mime,
         };
-
         const pathInfo = this.getPathInfo(
           node.urn
         );
-
         items.push(
           Object.assign({}, item, pathInfo)
         );
@@ -193,14 +217,17 @@ module.exports = class ExtractorSvc {
       children: manifestBody.derivatives,
     });
 
+    //** */
     return items;
+    //** */
+    // return [...new Set(nodeRoles)];
   }
 
   /////////////////////////////////////////////////////////
   // Collect derivatives for SVF
   //
   /////////////////////////////////////////////////////////
-  getSVFDerivatives(item) {
+  getSVFDerivatives(item, internal_Token) {
     return new Promise(
       async (resolve, reject) => {
         try {
@@ -211,7 +238,7 @@ module.exports = class ExtractorSvc {
           const files = [svfPath];
 
           const data = await this.getDerivative(
-            await getInternalToken(),
+            internal_Token,
             item.urn
           );
 
@@ -269,7 +296,7 @@ module.exports = class ExtractorSvc {
   // Collect derivatives for F2D
   //
   /////////////////////////////////////////////////////////
-  getF2dDerivatives(getToken, item) {
+  getF2dDerivatives(internal_Token, item) {
     return new Promise(
       async (resolve, reject) => {
         try {
@@ -279,7 +306,7 @@ module.exports = class ExtractorSvc {
             item.basePath + "manifest.json.gz";
 
           const data = await this.getDerivative(
-            getToken,
+            internal_Token,
             manifestPath
           );
 
@@ -319,7 +346,7 @@ module.exports = class ExtractorSvc {
   // Get all derivatives from top level manifest
   //
   /////////////////////////////////////////////////////////
-  getDerivatives(manifestBody) {
+  getDerivatives(manifestBody, internal_Token) {
     return new Promise(
       async (resolve, reject) => {
         const items =
@@ -328,17 +355,21 @@ module.exports = class ExtractorSvc {
         const derivativeTasks = items.map(
           async (item) => {
             switch (item.mime) {
+              //mostly for 3D views
               case "application/autodesk-svf":
                 return this.getSVFDerivatives(
-                  item
+                  item,
+                  internal_Token
                 );
 
+              //not found in my case!!
               case "application/autodesk-f2d":
                 return this.getF2dDerivatives(
-                  await getInternalToken(),
+                  internal_Token,
                   item
                 );
 
+              //it was found!
               case "application/autodesk-db":
                 return Promise.resolve(
                   Object.assign({}, item, {
@@ -353,6 +384,7 @@ module.exports = class ExtractorSvc {
                   })
                 );
 
+              //missing cases for "application/json" ; "image/png" ; "application/pdf"
               default:
                 return Promise.resolve(
                   Object.assign({}, item, {
@@ -409,7 +441,7 @@ module.exports = class ExtractorSvc {
   // Get derivative data for specific URN
   //
   /////////////////////////////////////////////////////////
-  getDerivative(getToken, urn) {
+  getDerivative(internal_Token, urn) {
     return new Promise(
       async (resolve, reject) => {
         const baseUrl =
@@ -419,15 +451,14 @@ module.exports = class ExtractorSvc {
           baseUrl +
           `derivativeservice/v2/derivatives/${urn}`; //deprecated??
 
-        const token = await getInternalToken();
-
         request(
           {
             url,
             method: "GET",
             headers: {
               Authorization:
-                "Bearer " + token.access_token,
+                "Bearer " +
+                internal_Token.access_token,
               "Accept-Encoding": "gzip, deflate",
             },
             encoding: null,
@@ -484,13 +515,16 @@ module.exports = class ExtractorSvc {
 
         if (
           typeof data === "object" &&
-          ext === ".json"
+          ext === ".json" &&
+          filename.includes(
+            "AECModelData" === false
+          )
         ) {
+          //problem here with AECModelData so dont include it!
           wstream.write(JSON.stringify(data));
         } else {
           wstream.write(data);
         }
-
         wstream.end();
       }
     );
